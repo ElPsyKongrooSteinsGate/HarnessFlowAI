@@ -156,3 +156,39 @@ The router chooses the worker; the harness and control plane govern how that wor
 - Workflow routing is capability-based. An unknown goal should be handled by a future model-based classifier or explicit agent name.
 - The current model gateway is a local stub, so workflow execution currently demonstrates routing and governance but does not call a real LLM or business system.
 - This setup is intended for local development and experimentation.
+
+## 9) Run the minimal API
+
+The API entry point is `api/app.py` and the dependency list is `requirements.txt`.
+
+Install the API dependencies:
+
+```cmd
+python -m pip install -r requirements.txt
+```
+
+Start the backend:
+
+```cmd
+python -m uvicorn api.app:app --host 127.0.0.1 --port 8000
+```
+
+In a second Command Prompt window, verify the API:
+
+```cmd
+curl http://127.0.0.1:8000/health
+curl http://127.0.0.1:8000/workflows
+curl -X POST http://127.0.0.1:8000/workflows/run -H "Content-Type: application/json" -d "{\"goal\":\"Approve invoice INV-1001 for payment\"}"
+```
+
+The response contains the selected workflow and lifecycle events:
+
+```json
+{
+    "workflow": "invoice_approval",
+    "status": "TASK_COMPLETED",
+    "events": ["TASK_STARTED", "THOUGHT_START", "THOUGHT_COMPLETE", "TASK_COMPLETED"]
+}
+```
+
+The current API runs workflows synchronously and stores task results in memory. It is intended as a working development backend before adding a database, background workers, authentication, and real model providers.

@@ -181,3 +181,63 @@ This is the governance boundary of HarnessFlowAI: the router decides **which** w
 ## Current status
 
 The project imports successfully in the `ml` environment. Workflow routing and per-workflow governance are implemented, but the model gateway is still a local stub. Production use requires a real LLM provider, real business tools, persistent workflow state, and a stronger intent classifier for unmatched goals.
+
+## Minimal API backend
+
+The project now includes a small FastAPI backend in `api/app.py`.
+
+Backend files:
+
+```text
+api/
+├── __init__.py
+└── app.py
+requirements.txt
+```
+
+Install dependencies:
+
+```cmd
+python -m pip install -r requirements.txt
+```
+
+Start it from Windows Command Prompt:
+
+```cmd
+conda activate ml
+cd /d "C:\Users\Acer\Desktop\my\anaconda\Harness\HarnessFlowAI"
+python -m uvicorn api.app:app --host 127.0.0.1 --port 8000
+```
+
+Available endpoints:
+
+```text
+GET  /health
+GET  /workflows
+POST /workflows/run
+GET  /tasks/{task_id}
+```
+
+Example request from a second Command Prompt window:
+
+```cmd
+curl -X POST http://127.0.0.1:8000/workflows/run -H "Content-Type: application/json" -d "{\"goal\":\"Approve invoice INV-1001 for payment\"}"
+```
+
+Example response shape:
+
+```json
+{
+    "task_id": "generated-task-id",
+    "workflow": "invoice_approval",
+    "status": "TASK_COMPLETED",
+    "events": [
+        {"type": "TASK_STARTED"},
+        {"type": "THOUGHT_START"},
+        {"type": "THOUGHT_COMPLETE"},
+        {"type": "TASK_COMPLETED"}
+    ]
+}
+```
+
+The response includes the selected workflow, task ID, final status, and emitted events. This first backend version runs synchronously and uses in-memory task storage so the request flow is easy to test. It is not yet production-ready; database persistence, authentication, background workers, real model providers, and business integrations come next.
