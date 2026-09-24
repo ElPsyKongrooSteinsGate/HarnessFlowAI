@@ -10,14 +10,21 @@ class ContextEngine:
         task: Any,
         memory: List[str],
         system_prompt: str,
-        retrieved_context: List[str] | None = None,
+        workflow_knowledge: List[str] | None = None,
+        governance_knowledge: List[str] | None = None,
     ) -> List[Dict[str, Any]]:
         context = [{"role": "system", "content": system_prompt}]
 
-        if retrieved_context:
+        if workflow_knowledge:
             context.append({
                 "role": "system",
-                "content": "Governance knowledge:\n" + "\n".join(retrieved_context),
+                "content": "Workflow definition knowledge:\n" + "\n".join(workflow_knowledge),
+            })
+
+        if governance_knowledge:
+            context.append({
+                "role": "system",
+                "content": "Governance policy knowledge:\n" + "\n".join(governance_knowledge),
             })
         
         # Inject long-term memory context

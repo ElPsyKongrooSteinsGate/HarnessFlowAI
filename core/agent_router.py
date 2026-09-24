@@ -5,6 +5,7 @@ from core.harness import AgentHarness
 from core.types import Event, HarnessConfig, WorkflowDefinition
 from core.workflow_registry import WorkflowRegistry
 from engines.rag_engine import RAGEngine
+from engines.governance_loader import load_governance_csv
 
 
 @dataclass
@@ -22,6 +23,7 @@ class AgentRouter:
         self._agents: Dict[str, RegisteredAgent] = {}
         self.workflows = WorkflowRegistry()
         self.rag_engine = RAGEngine()
+        self.governance_documents_loaded = load_governance_csv(self.rag_engine)
 
     def register(
         self,
@@ -72,6 +74,26 @@ class AgentRouter:
                 workflow_collection=workflow.workflow_collection,
                 governance_collection=workflow.governance_collection,
             ),
+        )
+
+    def add_workflow_document(
+        self,
+        workflow_name: str,
+        content: str,
+        source: str = "user-input",
+    ) -> None:
+        """Add user-provided domain knowledge to a registered workflow."""
+        agent = self._agents.get(workflow_name)
+        if agent is None or agent.workflow is None:
+            raise KeyError(f"Workflow '{workflow_name}' is not registered.")
+        self.rag_engine.add_document(
+            content=content,
+            collection=agent.workflow.workflow_collection,
+            metadata={
+                "workflow": workflow_name,
+                "knowledge_type": "workflow",
+                "source": source,
+            },
         )
 
     def select(self, user_goal: str, agent_name: Optional[str] = None) -> RegisteredAgent:

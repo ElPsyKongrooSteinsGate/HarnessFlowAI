@@ -1,10 +1,11 @@
 from typing import Any, Dict, List, Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from core.agent_router import AgentRouter
-from core.types import EventType, WorkflowDefinition, WorkflowStep
+from core.default_workflows import register_default_workflows
+from core.types import EventType
 
 
 class WorkflowRunRequest(BaseModel):
@@ -19,38 +20,21 @@ class WorkflowRunResponse(BaseModel):
     events: List[Dict[str, Any]]
 
 
+class WorkflowDocumentRequest(BaseModel):
+    workflow: str = Field(min_length=1)
+    content: str = Field(min_length=1)
+    source: str = Field(default="user-input", min_length=1)
+
+
+class WorkflowDocumentResponse(BaseModel):
+    workflow: str
+    collection: str
+    source: str
+    status: str
+
+
 router = AgentRouter()
-router.register_workflow(
-    WorkflowDefinition(
-        name="invoice_approval",
-        description="Invoice approval and payment workflow",
-        capabilities=["invoice", "approval", "payment", "billing"],
-        steps=[
-            WorkflowStep(name="validate_invoice"),
-            WorkflowStep(name="check_budget"),
-            WorkflowStep(name="request_approval", required_approval=True),
-        ],
-        allowed_tools=["invoice_lookup", "budget_check", "request_approval"],
-        approval_tools=["request_approval"],
-        max_steps=10,
-        system_prompt="You manage invoice approval workflows and follow company policy.",
-    )
-)
-router.register_workflow(
-    WorkflowDefinition(
-        name="employee_onboarding",
-        description="Employee onboarding and access workflow",
-        capabilities=["employee", "onboarding", "access", "hire"],
-        steps=[
-            WorkflowStep(name="validate_employee"),
-            WorkflowStep(name="create_accounts", required_approval=True),
-        ],
-        allowed_tools=["employee_lookup", "create_accounts"],
-        approval_tools=["create_accounts"],
-        max_steps=10,
-        system_prompt="You manage employee onboarding workflows and follow access policy.",
-    )
-)
+register_default_workflows(router)
 
 task_store: Dict[str, WorkflowRunResponse] = {}
 app = FastAPI(title="HarnessFlowAI API", version="0.1.0")
@@ -64,6 +48,51 @@ async def health() -> Dict[str, str]:
 @app.get("/workflows")
 async def list_workflows() -> Dict[str, List[str]]:
     return {"workflows": list(router.workflows.names())}
+
+
+@app.post("/knowledge/workflow", response_model=WorkflowDocumentResponse)
+async def add_workflow_document(
+    request: WorkflowDocumentRequest,
+) -> WorkflowDocumentResponse:
+    try:
+        router.add_workflow_document(
+            workflow_name=request.workflow,
+            content=request.content,
+            source=request.source,
+        )
+        workflow = router.workflows.get(request.workflow)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    return WorkflowDocumentResponse(
+        workflow=request.workflow,
+        collection=workflow.workflow_collection,
+        source=request.source,
+        status="stored",
+    )
+
+
+@app.get("/knowledge/workflow/{workflow_name}")
+async def query_workflow_knowledge(
+    workflow_name: str,
+    query: str = Query(min_length=1),
+    limit: int = 5,
+) -> Dict[str, Any]:
+    try:
+        workflow = router.workflows.get(workflow_name)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    documents = await router.rag_engine.retrieve(
+        query=query,
+        collection=workflow.workflow_collection,
+        limit=limit,
+        where={"workflow": workflow_name},
+    )
+    return {
+        "workflow": workflow_name,
+        "collection": workflow.workflow_collection,
+        "documents": documents,
+    }
 
 
 @app.post("/workflows/run", response_model=WorkflowRunResponse)

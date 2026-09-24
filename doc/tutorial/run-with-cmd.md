@@ -85,83 +85,85 @@ async for event in router.run("Review this code", agent_name="coding"):
 
 The router selects an agent automatically when `agent_name` is omitted. Each registered agent has its own `HarnessConfig`, so governance limits, approval rules, providers, and tools can vary by agent.
 
-## 7) Define business workflows
+## 7) Run the ISO 37301 compliance agent
 
-Business processes can be declared as workflows and routed by capabilities:
+The default agent is designed for ISO 37301 compliance management system assessment. It is selected for goals containing compliance, governance, obligations, risk, audit, or ISO 37301 concepts.
 
-```python
-from core.types import WorkflowDefinition, WorkflowStep
-
-router.register_workflow(
-    WorkflowDefinition(
-        name="invoice_approval",
-        description="Invoice approval and payment workflow",
-        capabilities=["invoice", "approval", "payment", "billing"],
-        steps=[
-            WorkflowStep(name="validate_invoice"),
-            WorkflowStep(name="check_budget"),
-            WorkflowStep(name="request_approval", required_approval=True),
-        ],
-        allowed_tools=["invoice_lookup", "budget_check", "request_approval"],
-        approval_tools=["request_approval"],
-        max_steps=10,
-        system_prompt="You manage invoice approval workflows and follow company policy.",
-    )
-)
-```
-
-When the goal contains matching capabilities, the router selects the workflow automatically:
-
-```python
-selected = router.select("Approve invoice INV-1001 for payment")
-print(selected.name)
-```
-
-Expected output:
+The workflow includes:
 
 ```text
-invoice_approval
+Understand context and scope
+   -> Identify compliance obligations
+   -> Assess compliance risk
+   -> Evaluate evidence and gaps
+   -> Recommend corrective action
 ```
 
-Each workflow receives its own governed `AgentHarness` with its own tools, approvals, step limit, and system prompt.
+Run it with:
+
+```cmd
+python run.py
+```
+
+The runner selects:
+
+```text
+iso37301_compliance
+```
+
+To register another business workflow, use `WorkflowDefinition` with its own capabilities, steps, tools, and governance policy. The current default workflow is intentionally ISO 37301-specific because the loaded governance source is ISO 37301.
 
 ### Workflow-specific governance RAG
 
-Governance documents can be attached to each workflow:
+The ISO workflow uses the shared `workflows` collection for process knowledge and the shared `governance` collection for policies. Global ISO records are loaded from `data/governance/ISO/ISO_37301.csv` before any harness is created.
+
+Workflow-specific policies can still be attached like this:
 
 ```python
 WorkflowDefinition(
-    name="invoice_approval",
+    name="iso37301_compliance",
     workflow_collection="workflows",
     governance_collection="governance",
     workflow_documents=[
-        "Invoice approval workflow: validate invoice, check budget, and request approval.",
+        "Assess context, obligations, risk, evidence, gaps, and corrective actions.",
     ],
     governance_documents=[
-        "Invoices over 5000 require manager approval before payment.",
-        "Validate the invoice number, vendor, amount, and budget before approval.",
+        "Use the approved compliance policy and cite the applicable ISO clause.",
     ],
 )
 ```
 
-When the workflow is selected, `RAGEngine` retrieves from two shared collections: `workflows` for process definitions and `governance` for policy documents. Each record includes workflow metadata, so invoice records and onboarding records remain isolated inside their respective shared collections. `ContextEngine` adds both results to the model context. The `ControlPlane` still enforces hard limits and tool permissions; retrieved policy text informs the agent but is not a security boundary.
+When the workflow is selected, `RAGEngine` retrieves workflow knowledge and both workflow-specific and global ISO governance. `ContextEngine` keeps those sections separate. The `ControlPlane` still enforces hard limits and tool permissions; retrieved policy text informs the agent but is not a security boundary.
+
+The ISO governance CSV under `data/governance/ISO/` is loaded automatically when `AgentRouter` starts. This happens before `register_workflow()` creates any `AgentHarness`, so the shared governance collection already contains ISO policy data before a workflow can run. Global ISO records are marked with `scope=global` and are available to every workflow; workflow-specific policies are marked with that workflow name.
+
+The current ISO source file is:
+
+```text
+data/governance/ISO/ISO_37301.csv
+```
+
+You can confirm that ISO records are present in the shared collection with:
+
+```cmd
+python script/data/query/chromedb/query.py --collection governance --query "compliance obligations" --limit 5
+```
+
+The loader uses deterministic document IDs, so starting the application again updates existing ISO records instead of creating duplicates.
 
 ### Check that RAG is working
 
 Run this direct ChromaDB retrieval check from Command Prompt:
 
 ```cmd
-python -c "import asyncio; from engines.rag_engine import RAGEngine; rag=RAGEngine(); rag.add_document('Invoices over 5000 require manager approval.','finance-governance'); rag.add_document('Verify employee identity before account creation.','hr-governance'); docs=asyncio.run(rag.retrieve('invoice payment approval','finance-governance')); print(docs); assert docs == ['Invoices over 5000 require manager approval.']; print('RAG_OK')"
+python script/data/query/chromedb/query.py --collection governance --query "compliance obligations" --limit 5
 ```
 
 Expected output:
 
-```text
-['Invoices over 5000 require manager approval.']
-RAG_OK
-```
+The result should contain ISO governance records from `ISO_37301.csv`.
 
-This verifies collection isolation, retrieval relevance, and persistent vector storage. ChromaDB data is stored under `data/chroma`. Running `python run.py` alone does not prove that the model used the retrieved policy because the current `ModelGateway` is a fixed local stub.
+This verifies collection isolation, retrieval relevance, and persistent vector storage. Because ChromaDB is persistent, queries can return multiple matching records and should not assert one exact result. Running `python run.py` alone does not prove that the model used the retrieved policy because the current `ModelGateway` is a fixed local stub.
 
 On the first retrieval, ChromaDB may download its default `all-MiniLM-L6-v2` embedding model into the local Chroma cache. Later runs reuse that cache.
 
@@ -252,17 +254,33 @@ In a second Command Prompt window, verify the API:
 ```cmd
 curl http://127.0.0.1:8000/health
 curl http://127.0.0.1:8000/workflows
-curl -X POST http://127.0.0.1:8000/workflows/run -H "Content-Type: application/json" -d "{\"goal\":\"Approve invoice INV-1001 for payment\"}"
+curl -X POST http://127.0.0.1:8000/workflows/run -H "Content-Type: application/json" -d "{\"goal\":\"Assess compliance obligations and risks under ISO 37301\"}"
 ```
 
 The response contains the selected workflow and lifecycle events:
 
 ```json
 {
-    "workflow": "invoice_approval",
+    "workflow": "iso37301_compliance",
     "status": "TASK_COMPLETED",
     "events": ["TASK_STARTED", "THOUGHT_START", "THOUGHT_COMPLETE", "TASK_COMPLETED"]
 }
 ```
 
 The current API runs workflows synchronously and stores task results in memory. It is intended as a working development backend before adding a database, background workers, authentication, and real model providers.
+
+## 10) Add user documents to Workflow RAG
+
+The ISO 37301 CSV is Governance RAG. User-provided domain documents belong in Workflow RAG. Add an HR document to the active workflow:
+
+```cmd
+curl -X POST http://127.0.0.1:8000/knowledge/workflow -H "Content-Type: application/json" -d "{\"workflow\":\"iso37301_compliance\",\"source\":\"hr-handbook.txt\",\"content\":\"HR onboarding requires identity verification, manager approval, and access review before account creation.\"}"
+```
+
+Query the uploaded document:
+
+```cmd
+curl "http://127.0.0.1:8000/knowledge/workflow/iso37301_compliance?query=HR%20onboarding%20identity%20approval"
+```
+
+The next workflow run combines this HR knowledge from `workflows` with ISO 37301 requirements from `governance`.

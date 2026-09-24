@@ -62,16 +62,23 @@ class AgentHarness:
                     collection=self.workflow_collection,
                     where={"workflow": self.workflow_name} if self.workflow_name else None,
                 )
-                governance_knowledge = await self.rag_engine.retrieve(
-                    query=user_goal,
-                    collection=self.governance_collection,
-                    where={"workflow": self.workflow_name} if self.workflow_name else None,
-                )
+                if self.workflow_name:
+                    governance_knowledge = await self.rag_engine.retrieve_workflow_governance(
+                        query=user_goal,
+                        collection=self.governance_collection,
+                        workflow_name=self.workflow_name,
+                    )
+                else:
+                    governance_knowledge = await self.rag_engine.retrieve(
+                        query=user_goal,
+                        collection=self.governance_collection,
+                    )
                 working_context = await self.context_engine.assemble_context(
                     task=task,
                     memory=await self.memory.retrieve_relevant(user_goal),
                     system_prompt=self.config.system_prompt,
-                    retrieved_context=workflow_knowledge + governance_knowledge,
+                    workflow_knowledge=workflow_knowledge,
+                    governance_knowledge=governance_knowledge,
                 )
 
                 # 3. MODEL GATEWAY: Call LLM with routing and fallbacks
