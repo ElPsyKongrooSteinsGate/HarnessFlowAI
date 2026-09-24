@@ -142,6 +142,23 @@ WorkflowDefinition(
 
 When the workflow is selected, `RAGEngine` retrieves documents from that workflow's collection and `ContextEngine` adds them to the model context as governance knowledge. The `ControlPlane` still enforces hard limits and tool permissions; retrieved policy text informs the agent but is not a security boundary.
 
+### Check that RAG is working
+
+Run this direct retrieval check from Command Prompt:
+
+```cmd
+python -c "import asyncio; from engines.rag_engine import RAGEngine; rag=RAGEngine(); rag.add_document('Invoices over 5000 require manager approval.','finance-governance'); rag.add_document('Verify employee identity before account creation.','hr-governance'); docs=asyncio.run(rag.retrieve('invoice payment approval','finance-governance')); print(docs); assert docs == ['Invoices over 5000 require manager approval.']; print('RAG_OK')"
+```
+
+Expected output:
+
+```text
+['Invoices over 5000 require manager approval.']
+RAG_OK
+```
+
+This verifies collection isolation and retrieval relevance. Running `python run.py` alone does not prove that the model used the retrieved policy because the current `ModelGateway` is a fixed local stub.
+
 ## 8) Where governance fits
 
 Governance runs inside the selected `AgentHarness`, after the router chooses an agent:

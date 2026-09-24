@@ -204,6 +204,23 @@ AgentRouter selects workflow
 
 The current `engines/rag_engine.py` is a dependency-free in-memory retriever for local development. It isolates documents by collection and ranks them using term overlap. Production use should replace it with a persistent vector store and tenant-aware access controls. RAG informs decisions; `ControlPlane` remains the enforcement boundary.
 
+### RAG verification
+
+Use this command from the project directory after activating the `ml` environment:
+
+```cmd
+python -c "import asyncio; from engines.rag_engine import RAGEngine; rag=RAGEngine(); rag.add_document('Invoices over 5000 require manager approval.','finance-governance'); rag.add_document('Verify employee identity before account creation.','hr-governance'); docs=asyncio.run(rag.retrieve('invoice payment approval','finance-governance')); print(docs); assert docs == ['Invoices over 5000 require manager approval.']; print('RAG_OK')"
+```
+
+Expected result:
+
+```text
+['Invoices over 5000 require manager approval.']
+RAG_OK
+```
+
+The check proves that documents are stored, retrieved from the correct workflow collection, and ranked for the query. The current model gateway returns a stub response, so an end-to-end model response cannot yet prove that retrieved governance text influenced generation.
+
 ## Current status
 
 The project imports successfully in the `ml` environment. Workflow routing and per-workflow governance are implemented, but the model gateway is still a local stub. Production use requires a real LLM provider, real business tools, persistent workflow state, and a stronger intent classifier for unmatched goals.
