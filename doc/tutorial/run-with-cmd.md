@@ -85,7 +85,47 @@ async for event in router.run("Review this code", agent_name="coding"):
 
 The router selects an agent automatically when `agent_name` is omitted. Each registered agent has its own `HarnessConfig`, so governance limits, approval rules, providers, and tools can vary by agent.
 
-## 7) Where governance fits
+## 7) Define business workflows
+
+Business processes can be declared as workflows and routed by capabilities:
+
+```python
+from core.types import WorkflowDefinition, WorkflowStep
+
+router.register_workflow(
+    WorkflowDefinition(
+        name="invoice_approval",
+        description="Invoice approval and payment workflow",
+        capabilities=["invoice", "approval", "payment", "billing"],
+        steps=[
+            WorkflowStep(name="validate_invoice"),
+            WorkflowStep(name="check_budget"),
+            WorkflowStep(name="request_approval", required_approval=True),
+        ],
+        allowed_tools=["invoice_lookup", "budget_check", "request_approval"],
+        approval_tools=["request_approval"],
+        max_steps=10,
+        system_prompt="You manage invoice approval workflows and follow company policy.",
+    )
+)
+```
+
+When the goal contains matching capabilities, the router selects the workflow automatically:
+
+```python
+selected = router.select("Approve invoice INV-1001 for payment")
+print(selected.name)
+```
+
+Expected output:
+
+```text
+invoice_approval
+```
+
+Each workflow receives its own governed `AgentHarness` with its own tools, approvals, step limit, and system prompt.
+
+## 8) Where governance fits
 
 Governance runs inside the selected `AgentHarness`, after the router chooses an agent:
 
@@ -113,5 +153,6 @@ The router chooses the worker; the harness and control plane govern how that wor
 ## Notes
 
 - The project currently imports successfully in the `ml` environment.
-- It is still a framework scaffold and may not yet perform full end-to-end runtime behavior automatically.
+- Workflow routing is capability-based. An unknown goal should be handled by a future model-based classifier or explicit agent name.
+- The current model gateway is a local stub, so workflow execution currently demonstrates routing and governance but does not call a real LLM or business system.
 - This setup is intended for local development and experimentation.
