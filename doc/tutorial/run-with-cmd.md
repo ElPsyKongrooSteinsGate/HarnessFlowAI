@@ -85,6 +85,31 @@ async for event in router.run("Review this code", agent_name="coding"):
 
 The router selects an agent automatically when `agent_name` is omitted. Each registered agent has its own `HarnessConfig`, so governance limits, approval rules, providers, and tools can vary by agent.
 
+## 7) Where governance fits
+
+Governance runs inside the selected `AgentHarness`, after the router chooses an agent:
+
+```text
+User goal
+   -> AgentRouter selects an agent
+   -> AgentHarness starts the workflow
+   -> ControlPlane checks limits and approvals
+   -> Approved tools execute through ToolRuntime
+   -> Events and memory record the result
+```
+
+The `ControlPlane` enforces the configured step limit before each model step and checks every requested tool before execution. Configure these policies per agent:
+
+```python
+HarnessConfig(
+    max_steps=5,
+    approval_tools=["terminal_execute", "file_delete"],
+    allowed_tools=["terminal_execute"]
+)
+```
+
+The router chooses the worker; the harness and control plane govern how that worker operates.
+
 ## Notes
 
 - The project currently imports successfully in the `ml` environment.

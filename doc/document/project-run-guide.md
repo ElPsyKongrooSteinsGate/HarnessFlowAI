@@ -103,6 +103,47 @@ async for event in router.run(
 
 `AgentRouter` chooses the agent; `AgentHarness` remains responsible for controlled execution, approvals, tools, memory, and lifecycle events.
 
+## Governance model
+
+Governance is enforced by the `ControlPlane` owned by each `AgentHarness`. This keeps agent selection separate from execution policy:
+
+```text
+AgentRouter
+    -> selects a named agent and its HarnessConfig
+AgentHarness
+    -> creates the task and runs the workflow
+ControlPlane
+    -> enforces max_steps and approval_tools
+ToolRuntime
+    -> executes the approved tool call
+Tracer and Events
+    -> expose the workflow outcome
+```
+
+The main governance checks are:
+
+- **Step limit:** `validate_step_limit()` stops a workflow that exceeds `max_steps`.
+- **Tool approval:** `request_approval_if_needed()` checks tools listed in `approval_tools`.
+- **Tool allow-list:** `ToolRuntime` receives `allowed_tools` for the selected agent.
+- **Failure state:** policy violations and runtime errors produce `TASK_FAILED` and set the harness state to `FAILED`.
+
+Each registered agent can use a different policy profile because its `HarnessConfig` is passed into its own `AgentHarness`:
+
+```python
+router.register(
+     name="restricted-review",
+     description="review inspect audit quality",
+     config=HarnessConfig(
+          system_prompt="Review code for correctness and risk.",
+          max_steps=10,
+          allowed_tools=[],
+          approval_tools=["file_delete", "terminal_execute"]
+     )
+)
+```
+
+This is the governance boundary of HarnessFlowAI: the router decides **which** worker runs, while the selected harness decides **how** that worker may run.
+
 ## Current status
 
 The project imports successfully in the `ml` environment, but it remains a scaffold framework rather than a complete production agent runtime. Some modules are intentionally minimal and may require further implementation for advanced tool execution and model integration.

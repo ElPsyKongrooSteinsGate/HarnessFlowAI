@@ -68,11 +68,26 @@ class AgentHarness:
 
                 # 5. TOOL RUNTIME & CONTROL PLANE APPROVALS
                 for tool_call in response.tool_calls:
+                    allowed, reason = self.control_plane.check_tool_policy(
+                        tool_call, self.config.allowed_tools
+                    )
+                    if not allowed:
+                        await self.context_engine.add_observation(tool_call.id, reason)
+                        yield Event(
+                            type=EventType.TOOL_CALL_REJECTED,
+                            payload={"tool": tool_call.name, "reason": reason},
+                        )
+                        continue
+
                     # Governance & Approval check
                     approved = await self.control_plane.request_approval_if_needed(tool_call)
                     if not approved:
                         observation = "Error: Tool execution rejected by Control Plane safety policy."
                         await self.context_engine.add_observation(tool_call.id, observation)
+                        yield Event(
+                            type=EventType.TOOL_CALL_REJECTED,
+                            payload={"tool": tool_call.name, "reason": observation},
+                        )
                         continue
 
                     # Execute tool safely
