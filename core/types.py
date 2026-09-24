@@ -22,6 +22,15 @@ class EventType(str, Enum):
     TASK_FAILED = "TASK_FAILED"
 
 
+class WorkflowState(str, Enum):
+    RECEIVED = "RECEIVED"
+    RUNNING = "RUNNING"
+    WAITING_FOR_APPROVAL = "WAITING_FOR_APPROVAL"
+    COMPLETED = "COMPLETED"
+    REJECTED = "REJECTED"
+    FAILED = "FAILED"
+
+
 class ToolCall(BaseModel):
     id: str
     name: str
@@ -41,6 +50,23 @@ class HarnessConfig(BaseModel):
     allowed_tools: List[str] = []
     approval_tools: List[str] = ["terminal_execute"]
     memory_uri: str = "sqlite:///memory.db"
+
+
+class WorkflowStep(BaseModel):
+    name: str
+    description: str = ""
+    required_approval: bool = False
+
+
+class WorkflowDefinition(BaseModel):
+    name: str
+    description: str
+    capabilities: List[str] = []
+    steps: List[WorkflowStep] = []
+    allowed_tools: List[str] = []
+    approval_tools: List[str] = []
+    max_steps: int = 30
+    system_prompt: str = "You are a business process agent."
 
 
 class StepResult(BaseModel):

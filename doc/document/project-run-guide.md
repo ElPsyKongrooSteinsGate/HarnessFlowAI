@@ -13,6 +13,40 @@ User goal
     -> Model, tools, approvals, memory, and events
 ```
 
+## Declarative business workflows
+
+Business use cases are represented by `WorkflowDefinition` objects. A workflow declares its capabilities, ordered process steps, tools, approvals, system prompt, and execution limit.
+
+```python
+from core.types import WorkflowDefinition, WorkflowStep
+
+router.register_workflow(
+    WorkflowDefinition(
+        name="invoice_approval",
+        description="Invoice approval and payment workflow",
+        capabilities=["invoice", "approval", "payment", "billing"],
+        steps=[
+            WorkflowStep(name="validate_invoice"),
+            WorkflowStep(name="check_budget"),
+            WorkflowStep(name="request_approval", required_approval=True),
+        ],
+        allowed_tools=["invoice_lookup", "budget_check", "request_approval"],
+        approval_tools=["request_approval"],
+        max_steps=10,
+        system_prompt="You manage invoice approval workflows and follow company policy.",
+    )
+)
+```
+
+The router resolves a goal against workflow capabilities:
+
+```python
+selected = router.select("Approve invoice INV-1001 for payment")
+print(selected.name)
+```
+
+This prints `invoice_approval`. A second workflow, such as employee onboarding, can be registered with different capabilities and policies. The selected workflow automatically creates its own governed `AgentHarness`.
+
 ## Environment
 
 This project is intended to run with the Conda environment named `ml`.
@@ -146,4 +180,4 @@ This is the governance boundary of HarnessFlowAI: the router decides **which** w
 
 ## Current status
 
-The project imports successfully in the `ml` environment, but it remains a scaffold framework rather than a complete production agent runtime. Some modules are intentionally minimal and may require further implementation for advanced tool execution and model integration.
+The project imports successfully in the `ml` environment. Workflow routing and per-workflow governance are implemented, but the model gateway is still a local stub. Production use requires a real LLM provider, real business tools, persistent workflow state, and a stronger intent classifier for unmatched goals.
