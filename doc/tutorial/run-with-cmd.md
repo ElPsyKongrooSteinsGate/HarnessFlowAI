@@ -33,7 +33,7 @@ C:\Users\Acer\anaconda3\envs\ml\python.exe
 ## 5) Import the project
 
 ```cmd
-python -c "from core.harness import AgentHarness; from core.types import HarnessConfig; print('loaded')"
+python -c "from core.agent_router import AgentRouter; from core.harness import AgentHarness; print('loaded')"
 ```
 
 A successful result will print:
@@ -42,23 +42,29 @@ A successful result will print:
 loaded
 ```
 
-## 6) Run a simple script
+## 6) Run a routed agent
 
-Create a file named `run.py` in the project root with this content:
+The project uses `AgentRouter` to choose a named agent before handing the goal to its `AgentHarness`. The sample `run.py` registers a `coding` agent and selects it from the goal description.
+
+The core pattern is:
 
 ```python
 import asyncio
-from core.harness import AgentHarness
+from core.agent_router import AgentRouter
 from core.types import HarnessConfig
 
 async def main():
-    config = HarnessConfig(
-        system_prompt="You are a helpful AI coding assistant.",
-        max_steps=5,
-        allowed_tools=[]
+    router = AgentRouter()
+    router.register(
+        name="coding",
+        description="coding software programming development",
+        config=HarnessConfig(
+            system_prompt="You are a helpful AI coding assistant.",
+            max_steps=5,
+            allowed_tools=[]
+        )
     )
-    harness = AgentHarness(config)
-    async for event in harness.run("Write a hello world script"):
+    async for event in router.run("Write a hello world script"):
         print(event)
 
 asyncio.run(main())
@@ -69,6 +75,15 @@ Then run it:
 ```cmd
 python run.py
 ```
+
+To select a registered agent explicitly, pass its name:
+
+```python
+async for event in router.run("Review this code", agent_name="coding"):
+    print(event)
+```
+
+The router selects an agent automatically when `agent_name` is omitted. Each registered agent has its own `HarnessConfig`, so governance limits, approval rules, providers, and tools can vary by agent.
 
 ## Notes
 
