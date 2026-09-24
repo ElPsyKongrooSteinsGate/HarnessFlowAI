@@ -40,11 +40,21 @@ class AgentRouter:
     def register_workflow(self, workflow: WorkflowDefinition) -> None:
         """Register a business workflow and create its governed worker."""
         self.workflows.register(workflow)
+        workflow_documents = workflow.workflow_documents or [
+            f"Workflow: {workflow.name}. {workflow.description}. "
+            f"Steps: {', '.join(step.name for step in workflow.steps)}."
+        ]
+        for document in workflow_documents:
+            self.rag_engine.add_document(
+                content=document,
+                collection=workflow.workflow_collection,
+                metadata={"workflow": workflow.name, "knowledge_type": "workflow"},
+            )
         for document in workflow.governance_documents:
             self.rag_engine.add_document(
                 content=document,
                 collection=workflow.governance_collection,
-                metadata={"workflow": workflow.name},
+                metadata={"workflow": workflow.name, "knowledge_type": "governance"},
             )
         self._agents[workflow.name] = RegisteredAgent(
             name=workflow.name,
@@ -58,6 +68,8 @@ class AgentRouter:
                     approval_tools=workflow.approval_tools,
                 ),
                 rag_engine=self.rag_engine,
+                workflow_name=workflow.name,
+                workflow_collection=workflow.workflow_collection,
                 governance_collection=workflow.governance_collection,
             ),
         )

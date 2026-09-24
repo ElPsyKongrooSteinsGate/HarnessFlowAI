@@ -67,7 +67,9 @@ class WorkflowDefinition(BaseModel):
     approval_tools: List[str] = []
     max_steps: int = 30
     system_prompt: str = "You are a business process agent."
-    governance_collection: str = "default-governance"
+    workflow_collection: str = "workflows"
+    governance_collection: str = "governance"
+    workflow_documents: List[str] = []
     governance_documents: List[str] = []
 
 

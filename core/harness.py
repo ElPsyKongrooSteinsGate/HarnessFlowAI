@@ -20,7 +20,9 @@ class AgentHarness:
         self,
         config: HarnessConfig,
         rag_engine: Optional[RAGEngine] = None,
-        governance_collection: str = "default-governance",
+        workflow_name: Optional[str] = None,
+        workflow_collection: str = "workflows",
+        governance_collection: str = "governance",
     ):
         self.config = config
         self.task_runtime = TaskRuntime()
@@ -29,6 +31,8 @@ class AgentHarness:
         self.tool_runtime = ToolRuntime(allowed_tools=config.allowed_tools)
         self.memory = MemoryEngine(storage_uri=config.memory_uri)
         self.rag_engine = rag_engine or RAGEngine()
+        self.workflow_name = workflow_name
+        self.workflow_collection = workflow_collection
         self.governance_collection = governance_collection
         self.control_plane = ControlPlane(
             max_steps=config.max_steps, 
@@ -53,14 +57,21 @@ class AgentHarness:
                 self.control_plane.validate_step_limit(step_count)
                 
                 # 2. CONTEXT ENGINE: Build optimized prompt context
+                workflow_knowledge = await self.rag_engine.retrieve(
+                    query=user_goal,
+                    collection=self.workflow_collection,
+                    where={"workflow": self.workflow_name} if self.workflow_name else None,
+                )
+                governance_knowledge = await self.rag_engine.retrieve(
+                    query=user_goal,
+                    collection=self.governance_collection,
+                    where={"workflow": self.workflow_name} if self.workflow_name else None,
+                )
                 working_context = await self.context_engine.assemble_context(
                     task=task,
                     memory=await self.memory.retrieve_relevant(user_goal),
-                    system_prompt=self.config.system_prompt
-                    ,retrieved_context=await self.rag_engine.retrieve(
-                        query=user_goal,
-                        collection=self.governance_collection,
-                    )
+                    system_prompt=self.config.system_prompt,
+                    retrieved_context=workflow_knowledge + governance_knowledge,
                 )
 
                 # 3. MODEL GATEWAY: Call LLM with routing and fallbacks

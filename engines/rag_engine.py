@@ -58,12 +58,14 @@ class RAGEngine:
         query: str,
         collection: str,
         limit: int = 5,
+        where: Optional[Dict[str, str]] = None,
     ) -> List[str]:
         if self.use_chromadb:
             collection_handle = self._get_collection(collection)
             result = collection_handle.query(
                 query_texts=[query],
                 n_results=limit,
+                where=where,
             )
             documents = result.get("documents", [[]])[0]
             return [document for document in documents if document]
