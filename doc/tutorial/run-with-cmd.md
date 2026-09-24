@@ -144,7 +144,7 @@ When the workflow is selected, `RAGEngine` retrieves documents from that workflo
 
 ### Check that RAG is working
 
-Run this direct retrieval check from Command Prompt:
+Run this direct ChromaDB retrieval check from Command Prompt:
 
 ```cmd
 python -c "import asyncio; from engines.rag_engine import RAGEngine; rag=RAGEngine(); rag.add_document('Invoices over 5000 require manager approval.','finance-governance'); rag.add_document('Verify employee identity before account creation.','hr-governance'); docs=asyncio.run(rag.retrieve('invoice payment approval','finance-governance')); print(docs); assert docs == ['Invoices over 5000 require manager approval.']; print('RAG_OK')"
@@ -157,7 +157,37 @@ Expected output:
 RAG_OK
 ```
 
-This verifies collection isolation and retrieval relevance. Running `python run.py` alone does not prove that the model used the retrieved policy because the current `ModelGateway` is a fixed local stub.
+This verifies collection isolation, retrieval relevance, and persistent vector storage. ChromaDB data is stored under `data/chroma`. Running `python run.py` alone does not prove that the model used the retrieved policy because the current `ModelGateway` is a fixed local stub.
+
+On the first retrieval, ChromaDB may download its default `all-MiniLM-L6-v2` embedding model into the local Chroma cache. Later runs reuse that cache.
+
+### Query ChromaDB with the utility script
+
+The reusable query utility is located at:
+
+```text
+script/data/query/chromedb/query.py
+```
+
+List available collections:
+
+```cmd
+python script/data/query/chromedb/query.py --list
+```
+
+Run a semantic query:
+
+```cmd
+python script/data/query/chromedb/query.py --collection finance-governance --query "invoice approval" --limit 5
+```
+
+Inspect all records in a collection:
+
+```cmd
+python script/data/query/chromedb/query.py --collection finance-governance --get
+```
+
+The utility reads the persistent store from `data/chroma` by default.
 
 ## 8) Where governance fits
 

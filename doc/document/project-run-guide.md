@@ -202,9 +202,9 @@ AgentRouter selects workflow
     -> ControlPlane enforces hard runtime policy
 ```
 
-The current `engines/rag_engine.py` is a dependency-free in-memory retriever for local development. It isolates documents by collection and ranks them using term overlap. Production use should replace it with a persistent vector store and tenant-aware access controls. RAG informs decisions; `ControlPlane` remains the enforcement boundary.
+The current `engines/rag_engine.py` uses ChromaDB as a persistent vector store. Governance documents are stored under `data/chroma`, isolated by workflow collection, and queried by semantic similarity. The in-memory retriever remains available with `RAGEngine(use_chromadb=False)` for lightweight tests. Production use still requires tenant-aware access controls and document lifecycle management. RAG informs decisions; `ControlPlane` remains the enforcement boundary.
 
-### RAG verification
+### ChromaDB RAG verification
 
 Use this command from the project directory after activating the `ml` environment:
 
@@ -219,7 +219,33 @@ Expected result:
 RAG_OK
 ```
 
-The check proves that documents are stored, retrieved from the correct workflow collection, and ranked for the query. The current model gateway returns a stub response, so an end-to-end model response cannot yet prove that retrieved governance text influenced generation.
+The check proves that documents are stored in ChromaDB, retrieved from the correct workflow collection, and ranked for the query. The current model gateway returns a stub response, so an end-to-end model response cannot yet prove that retrieved governance text influenced generation.
+
+The first ChromaDB retrieval may download the default `all-MiniLM-L6-v2` embedding model into the local Chroma cache. This is a one-time setup step when internet access is available.
+
+### ChromaDB query utility
+
+Use [script/data/query/chromedb/query.py](../../script/data/query/chromedb/query.py) to inspect the persistent vector store.
+
+List collections:
+
+```cmd
+python script/data/query/chromedb/query.py --list
+```
+
+Query a collection semantically:
+
+```cmd
+python script/data/query/chromedb/query.py --collection finance-governance --query "invoice approval" --limit 5
+```
+
+Read all records from a collection:
+
+```cmd
+python script/data/query/chromedb/query.py --collection finance-governance --get
+```
+
+The script uses `data/chroma` by default. Use `--store` to point it at another ChromaDB persistence directory.
 
 ## Current status
 
