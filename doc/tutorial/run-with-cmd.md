@@ -125,6 +125,23 @@ invoice_approval
 
 Each workflow receives its own governed `AgentHarness` with its own tools, approvals, step limit, and system prompt.
 
+### Workflow-specific governance RAG
+
+Governance documents can be attached to each workflow:
+
+```python
+WorkflowDefinition(
+    name="invoice_approval",
+    governance_collection="finance-governance",
+    governance_documents=[
+        "Invoices over 5000 require manager approval before payment.",
+        "Validate the invoice number, vendor, amount, and budget before approval.",
+    ],
+)
+```
+
+When the workflow is selected, `RAGEngine` retrieves documents from that workflow's collection and `ContextEngine` adds them to the model context as governance knowledge. The `ControlPlane` still enforces hard limits and tool permissions; retrieved policy text informs the agent but is not a security boundary.
+
 ## 8) Where governance fits
 
 Governance runs inside the selected `AgentHarness`, after the router chooses an agent:

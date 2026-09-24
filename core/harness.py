@@ -8,6 +8,7 @@ from engines.task_runtime import TaskRuntime
 from engines.context_engine import ContextEngine
 from engines.model_gateway import ModelGateway
 from engines.state_memory import MemoryEngine
+from engines.rag_engine import RAGEngine
 from tools.base import ToolRuntime
 from core.control_plane import ControlPlane
 from observability.tracer import Tracer
@@ -15,13 +16,20 @@ from observability.tracer import Tracer
 logger = logging.getLogger(__name__)
 
 class AgentHarness:
-    def __init__(self, config: HarnessConfig):
+    def __init__(
+        self,
+        config: HarnessConfig,
+        rag_engine: Optional[RAGEngine] = None,
+        governance_collection: str = "default-governance",
+    ):
         self.config = config
         self.task_runtime = TaskRuntime()
         self.context_engine = ContextEngine(max_tokens=config.max_context_tokens)
         self.model_gateway = ModelGateway(providers=config.providers)
         self.tool_runtime = ToolRuntime(allowed_tools=config.allowed_tools)
         self.memory = MemoryEngine(storage_uri=config.memory_uri)
+        self.rag_engine = rag_engine or RAGEngine()
+        self.governance_collection = governance_collection
         self.control_plane = ControlPlane(
             max_steps=config.max_steps, 
             require_approval_for=config.approval_tools
@@ -49,6 +57,10 @@ class AgentHarness:
                     task=task,
                     memory=await self.memory.retrieve_relevant(user_goal),
                     system_prompt=self.config.system_prompt
+                    ,retrieved_context=await self.rag_engine.retrieve(
+                        query=user_goal,
+                        collection=self.governance_collection,
+                    )
                 )
 
                 # 3. MODEL GATEWAY: Call LLM with routing and fallbacks

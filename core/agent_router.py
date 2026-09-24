@@ -4,6 +4,7 @@ from typing import AsyncGenerator, Dict, Optional
 from core.harness import AgentHarness
 from core.types import Event, HarnessConfig, WorkflowDefinition
 from core.workflow_registry import WorkflowRegistry
+from engines.rag_engine import RAGEngine
 
 
 @dataclass
@@ -20,6 +21,7 @@ class AgentRouter:
     def __init__(self):
         self._agents: Dict[str, RegisteredAgent] = {}
         self.workflows = WorkflowRegistry()
+        self.rag_engine = RAGEngine()
 
     def register(
         self,
@@ -38,6 +40,12 @@ class AgentRouter:
     def register_workflow(self, workflow: WorkflowDefinition) -> None:
         """Register a business workflow and create its governed worker."""
         self.workflows.register(workflow)
+        for document in workflow.governance_documents:
+            self.rag_engine.add_document(
+                content=document,
+                collection=workflow.governance_collection,
+                metadata={"workflow": workflow.name},
+            )
         self._agents[workflow.name] = RegisteredAgent(
             name=workflow.name,
             description=workflow.description,
@@ -48,7 +56,9 @@ class AgentRouter:
                     max_steps=workflow.max_steps,
                     allowed_tools=workflow.allowed_tools,
                     approval_tools=workflow.approval_tools,
-                )
+                ),
+                rag_engine=self.rag_engine,
+                governance_collection=workflow.governance_collection,
             ),
         )
 

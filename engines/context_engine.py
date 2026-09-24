@@ -5,8 +5,20 @@ class ContextEngine:
         self.max_tokens = max_tokens
         self.history: List[Dict[str, Any]] = []
 
-    async def assemble_context(self, task: Any, memory: List[str], system_prompt: str) -> List[Dict[str, Any]]:
+    async def assemble_context(
+        self,
+        task: Any,
+        memory: List[str],
+        system_prompt: str,
+        retrieved_context: List[str] | None = None,
+    ) -> List[Dict[str, Any]]:
         context = [{"role": "system", "content": system_prompt}]
+
+        if retrieved_context:
+            context.append({
+                "role": "system",
+                "content": "Governance knowledge:\n" + "\n".join(retrieved_context),
+            })
         
         # Inject long-term memory context
         if memory:

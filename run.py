@@ -18,6 +18,11 @@ async def main():
             approval_tools=["request_approval"],
             max_steps=10,
             system_prompt="You manage invoice approval workflows and follow company policy.",
+            governance_collection="finance-governance",
+            governance_documents=[
+                "Invoice policy: invoices over 5000 require manager approval before payment.",
+                "Finance policy: validate the invoice number, vendor, amount, and budget before approval.",
+            ],
         )
     )
     router.register_workflow(
@@ -33,6 +38,11 @@ async def main():
             approval_tools=["create_accounts"],
             max_steps=10,
             system_prompt="You manage employee onboarding workflows and follow access policy.",
+            governance_collection="hr-governance",
+            governance_documents=[
+                "HR policy: verify employee identity and start date before creating accounts.",
+                "Access policy: account creation requires approval from the hiring manager.",
+            ],
         )
     )
 

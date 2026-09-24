@@ -178,6 +178,32 @@ router.register(
 
 This is the governance boundary of HarnessFlowAI: the router decides **which** worker runs, while the selected harness decides **how** that worker may run.
 
+## Governance RAG
+
+Governance knowledge is workflow-specific. `WorkflowDefinition` provides a collection name and policy documents:
+
+```python
+WorkflowDefinition(
+    name="invoice_approval",
+    governance_collection="finance-governance",
+    governance_documents=[
+        "Invoices over 5000 require manager approval before payment.",
+        "Validate the invoice number, vendor, amount, and budget before approval.",
+    ],
+)
+```
+
+The runtime flow is:
+
+```text
+AgentRouter selects workflow
+    -> RAGEngine retrieves that workflow's governance documents
+    -> ContextEngine adds governance knowledge to model context
+    -> ControlPlane enforces hard runtime policy
+```
+
+The current `engines/rag_engine.py` is a dependency-free in-memory retriever for local development. It isolates documents by collection and ranks them using term overlap. Production use should replace it with a persistent vector store and tenant-aware access controls. RAG informs decisions; `ControlPlane` remains the enforcement boundary.
+
 ## Current status
 
 The project imports successfully in the `ml` environment. Workflow routing and per-workflow governance are implemented, but the model gateway is still a local stub. Production use requires a real LLM provider, real business tools, persistent workflow state, and a stronger intent classifier for unmatched goals.
