@@ -132,7 +132,11 @@ Governance documents can be attached to each workflow:
 ```python
 WorkflowDefinition(
     name="invoice_approval",
-    governance_collection="finance-governance",
+    workflow_collection="workflows",
+    governance_collection="governance",
+    workflow_documents=[
+        "Invoice approval workflow: validate invoice, check budget, and request approval.",
+    ],
     governance_documents=[
         "Invoices over 5000 require manager approval before payment.",
         "Validate the invoice number, vendor, amount, and budget before approval.",
@@ -140,7 +144,7 @@ WorkflowDefinition(
 )
 ```
 
-When the workflow is selected, `RAGEngine` retrieves documents from that workflow's collection and `ContextEngine` adds them to the model context as governance knowledge. The `ControlPlane` still enforces hard limits and tool permissions; retrieved policy text informs the agent but is not a security boundary.
+When the workflow is selected, `RAGEngine` retrieves from two shared collections: `workflows` for process definitions and `governance` for policy documents. Each record includes workflow metadata, so invoice records and onboarding records remain isolated inside their respective shared collections. `ContextEngine` adds both results to the model context. The `ControlPlane` still enforces hard limits and tool permissions; retrieved policy text informs the agent but is not a security boundary.
 
 ### Check that RAG is working
 
@@ -175,16 +179,22 @@ List available collections:
 python script/data/query/chromedb/query.py --list
 ```
 
-Run a semantic query:
+Run a semantic query against all workflow definitions:
 
 ```cmd
-python script/data/query/chromedb/query.py --collection finance-governance --query "invoice approval" --limit 5
+python script/data/query/chromedb/query.py --collection workflows --query "invoice approval" --limit 5
+```
+
+Run a semantic query against all governance policies:
+
+```cmd
+python script/data/query/chromedb/query.py --collection governance --query "invoice approval limit" --limit 5
 ```
 
 Inspect all records in a collection:
 
 ```cmd
-python script/data/query/chromedb/query.py --collection finance-governance --get
+python script/data/query/chromedb/query.py --collection governance --get
 ```
 
 The utility reads the persistent store from `data/chroma` by default.

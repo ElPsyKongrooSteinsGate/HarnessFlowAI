@@ -185,7 +185,11 @@ Governance knowledge is workflow-specific. `WorkflowDefinition` provides a colle
 ```python
 WorkflowDefinition(
     name="invoice_approval",
-    governance_collection="finance-governance",
+    workflow_collection="workflows",
+    governance_collection="governance",
+    workflow_documents=[
+        "Invoice approval workflow: validate invoice, check budget, and request approval.",
+    ],
     governance_documents=[
         "Invoices over 5000 require manager approval before payment.",
         "Validate the invoice number, vendor, amount, and budget before approval.",
@@ -193,16 +197,19 @@ WorkflowDefinition(
 )
 ```
 
+All workflow definitions share the `workflows` collection. All governance policies share the `governance` collection. Records are isolated by the `workflow` metadata field.
+
 The runtime flow is:
 
 ```text
 AgentRouter selects workflow
-    -> RAGEngine retrieves that workflow's governance documents
-    -> ContextEngine adds governance knowledge to model context
+    -> RAGEngine retrieves matching workflow records from `workflows`
+    -> RAGEngine retrieves matching policy records from `governance`
+    -> ContextEngine adds both to model context
     -> ControlPlane enforces hard runtime policy
 ```
 
-The current `engines/rag_engine.py` uses ChromaDB as a persistent vector store. Governance documents are stored under `data/chroma`, isolated by workflow collection, and queried by semantic similarity. The in-memory retriever remains available with `RAGEngine(use_chromadb=False)` for lightweight tests. Production use still requires tenant-aware access controls and document lifecycle management. RAG informs decisions; `ControlPlane` remains the enforcement boundary.
+The current `engines/rag_engine.py` uses ChromaDB as a persistent vector store. Workflow definitions and governance policies are stored in separate shared collections under `data/chroma`, then isolated by workflow metadata and queried by semantic similarity. The in-memory retriever remains available with `RAGEngine(use_chromadb=False)` for lightweight tests. Production use still requires tenant-aware access controls and document lifecycle management. RAG informs decisions; `ControlPlane` remains the enforcement boundary.
 
 ### ChromaDB RAG verification
 
@@ -236,13 +243,19 @@ python script/data/query/chromedb/query.py --list
 Query a collection semantically:
 
 ```cmd
-python script/data/query/chromedb/query.py --collection finance-governance --query "invoice approval" --limit 5
+python script/data/query/chromedb/query.py --collection workflows --query "invoice approval" --limit 5
+```
+
+Query all governance policies:
+
+```cmd
+python script/data/query/chromedb/query.py --collection governance --query "invoice approval limit" --limit 5
 ```
 
 Read all records from a collection:
 
 ```cmd
-python script/data/query/chromedb/query.py --collection finance-governance --get
+python script/data/query/chromedb/query.py --collection governance --get
 ```
 
 The script uses `data/chroma` by default. Use `--store` to point it at another ChromaDB persistence directory.
