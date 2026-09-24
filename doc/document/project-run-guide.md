@@ -2,7 +2,16 @@
 
 ## Overview
 
-HarnessFlowAI is a Python-based agent framework designed to manage a task lifecycle, context windowing, provider-based model access, tool execution, and execution tracing.
+HarnessFlowAI is a Python-based execution and governance layer for AI agents. It manages a task lifecycle, context windowing, provider-based model access, tool execution, approval policies, and execution tracing.
+
+`AgentRouter` is the entry point for choosing among registered agents. The selected agent is an `AgentHarness` configured with its own model, tool, memory, and governance settings.
+
+```text
+User goal
+    -> AgentRouter selects an agent
+    -> AgentHarness executes the workflow
+    -> Model, tools, approvals, memory, and events
+```
 
 ## Environment
 
@@ -27,7 +36,7 @@ C:\Users\Acer\anaconda3\envs\ml\python.exe
 ## Import validation
 
 ```cmd
-python -c "from core.harness import AgentHarness; from core.types import HarnessConfig; print('loaded')"
+python -c "from core.agent_router import AgentRouter; from core.harness import AgentHarness; print('loaded')"
 ```
 
 This should print:
@@ -36,21 +45,25 @@ This should print:
 loaded
 ```
 
-## Example runner script
+## Example routed runner
 
 ```python
 import asyncio
-from core.harness import AgentHarness
+from core.agent_router import AgentRouter
 from core.types import HarnessConfig
 
 async def main():
-    config = HarnessConfig(
-        system_prompt="You are a helpful AI coding assistant.",
-        max_steps=5,
-        allowed_tools=[]
+    router = AgentRouter()
+    router.register(
+        name="coding",
+        description="coding software programming development",
+        config=HarnessConfig(
+            system_prompt="You are a helpful AI coding assistant.",
+            max_steps=5,
+            allowed_tools=[]
+        )
     )
-    harness = AgentHarness(config)
-    async for event in harness.run("Write a hello world script"):
+    async for event in router.run("Write a hello world script"):
         print(event)
 
 asyncio.run(main())
@@ -61,6 +74,75 @@ Run it with:
 ```cmd
 python run.py
 ```
+
+## Agent selection
+
+Register additional agents with different configurations:
+
+```python
+router.register(
+    name="review",
+    description="review inspect audit quality",
+    config=HarnessConfig(
+        system_prompt="You review code for correctness and risk.",
+        max_steps=10,
+        allowed_tools=[]
+    )
+)
+```
+
+Automatic selection uses the registered agent descriptions and the words in the user goal. Explicit selection is also supported:
+
+```python
+async for event in router.run(
+    "Inspect the implementation",
+    agent_name="review"
+):
+    print(event)
+```
+
+`AgentRouter` chooses the agent; `AgentHarness` remains responsible for controlled execution, approvals, tools, memory, and lifecycle events.
+
+## Governance model
+
+Governance is enforced by the `ControlPlane` owned by each `AgentHarness`. This keeps agent selection separate from execution policy:
+
+```text
+AgentRouter
+    -> selects a named agent and its HarnessConfig
+AgentHarness
+    -> creates the task and runs the workflow
+ControlPlane
+    -> enforces max_steps and approval_tools
+ToolRuntime
+    -> executes the approved tool call
+Tracer and Events
+    -> expose the workflow outcome
+```
+
+The main governance checks are:
+
+- **Step limit:** `validate_step_limit()` stops a workflow that exceeds `max_steps`.
+- **Tool approval:** `request_approval_if_needed()` checks tools listed in `approval_tools`.
+- **Tool allow-list:** `ToolRuntime` receives `allowed_tools` for the selected agent.
+- **Failure state:** policy violations and runtime errors produce `TASK_FAILED` and set the harness state to `FAILED`.
+
+Each registered agent can use a different policy profile because its `HarnessConfig` is passed into its own `AgentHarness`:
+
+```python
+router.register(
+     name="restricted-review",
+     description="review inspect audit quality",
+     config=HarnessConfig(
+          system_prompt="Review code for correctness and risk.",
+          max_steps=10,
+          allowed_tools=[],
+          approval_tools=["file_delete", "terminal_execute"]
+     )
+)
+```
+
+This is the governance boundary of HarnessFlowAI: the router decides **which** worker runs, while the selected harness decides **how** that worker may run.
 
 ## Current status
 
